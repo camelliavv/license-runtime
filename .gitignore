@@ -1,0 +1,38 @@
+# Go build and test artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+coverage.out
+coverage.html
+*.prof
+
+# Local build output
+bin/
+dist/
+build/
+tmp/
+output/
+
+# Go workspace files
+go.work
+go.work.sum
+
+# Local configuration and secrets
+.env
+.env.*
+secrets/
+*.pem
+*.key
+*.lic
+*.license
+
+# Editor and operating-system files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
