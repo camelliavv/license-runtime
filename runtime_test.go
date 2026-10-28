@@ -15,14 +15,14 @@ func TestNewActivationRequest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	request, err := NewActivationRequest("hw-test", keyID, keys.Public)
+	request, err := NewActivationRequest("hw-test", keys.Public)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if request.FormatVersion != contract.FormatVersionV1 || request.HardwareID != "hw-test" || request.RecipientKeyID != keyID || request.CreatedAt.IsZero() {
 		t.Fatalf("unexpected request: %#v", request)
 	}
-	if _, err := NewActivationRequestToken("hw-test", keyID, keys.Public); err != nil {
+	if _, err := NewActivationRequestToken("hw-test", keys.Public); err != nil {
 		t.Fatal(err)
 	}
 }

@@ -9,12 +9,20 @@ import (
 )
 
 // NewActivationRequest creates a client activation request with the current UTC time.
-func NewActivationRequest(hardwareID, recipientKeyID string, recipientPublicKey []byte) (contract.ActivationRequest, error) {
-	if hardwareID == "" || recipientKeyID == "" || len(recipientPublicKey) != 32 {
+// The recipient key ID is derived from recipientPublicKey.
+func NewActivationRequest(hardwareID string, recipientPublicKey []byte) (contract.ActivationRequest, error) {
+	if hardwareID == "" {
 		return contract.ActivationRequest{}, contract.ErrRecipientKeyRequired
 	}
+	if err := validateRecipientKey(recipientPublicKey); err != nil {
+		return contract.ActivationRequest{}, err
+	}
+	recipientKeyID, err := DeriveEncryptionKeyID(recipientPublicKey)
+	if err != nil {
+		return contract.ActivationRequest{}, err
+	}
 	var idBytes [16]byte
-	if _, err := rand.Read(idBytes[:]); err != nil {
+	if _, err = rand.Read(idBytes[:]); err != nil {
 		return contract.ActivationRequest{}, err
 	}
 	request := contract.ActivationRequest{FormatVersion: contract.FormatVersionV1, RequestID: encodeBase64(idBytes[:]), HardwareID: hardwareID, RecipientKeyID: recipientKeyID, RecipientPublicKey: encodeBase64(recipientPublicKey), CreatedAt: time.Now().UTC().Round(0)}
@@ -22,8 +30,9 @@ func NewActivationRequest(hardwareID, recipientKeyID string, recipientPublicKey 
 }
 
 // NewActivationRequestToken creates and encodes a client activation request token.
-func NewActivationRequestToken(hardwareID, recipientKeyID string, recipientPublicKey []byte) ([]byte, error) {
-	request, err := NewActivationRequest(hardwareID, recipientKeyID, recipientPublicKey)
+// The recipient key ID is derived from recipientPublicKey.
+func NewActivationRequestToken(hardwareID string, recipientPublicKey []byte) ([]byte, error) {
+	request, err := NewActivationRequest(hardwareID, recipientPublicKey)
 	if err != nil {
 		return nil, err
 	}

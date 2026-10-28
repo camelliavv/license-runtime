@@ -42,14 +42,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	recipientKeyID, err := runtime.DeriveEncryptionKeyID(keys.Public)
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	activationToken, err := runtime.NewActivationRequestToken(
 		hardwareID,
-		recipientKeyID,
 		keys.Public,
 	)
 	if err != nil {
