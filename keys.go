@@ -11,13 +11,17 @@ import (
 	"encoding/pem"
 	"fmt"
 	"os"
+
+	"github.com/camelliavv/license-contract"
 )
 
+// EncryptionKeyPair contains an X25519 private/public key pair.
 type EncryptionKeyPair struct {
 	Private []byte
 	Public  []byte
 }
 
+// GenerateEncryptionKeyPair generates a new X25519 encryption key pair.
 func GenerateEncryptionKeyPair() (EncryptionKeyPair, error) {
 	private, err := ecdh.X25519().GenerateKey(rand.Reader)
 	if err != nil {
@@ -26,6 +30,7 @@ func GenerateEncryptionKeyPair() (EncryptionKeyPair, error) {
 	return EncryptionKeyPair{Private: private.Bytes(), Public: private.PublicKey().Bytes()}, nil
 }
 
+// DeriveEncryptionKeyID derives the stable identifier for an X25519 public key.
 func DeriveEncryptionKeyID(key []byte) (string, error) {
 	if len(key) != 32 {
 		return "", fmt.Errorf("invalid X25519 public key")
@@ -34,6 +39,7 @@ func DeriveEncryptionKeyID(key []byte) (string, error) {
 	return "enc-" + hex.EncodeToString(digest[:8]), nil
 }
 
+// MarshalEncryptionPrivateKeyPEM encodes an X25519 private key as PKCS#8 PEM.
 func MarshalEncryptionPrivateKeyPEM(key []byte) ([]byte, error) {
 	if len(key) != 32 {
 		return nil, fmt.Errorf("invalid X25519 private key")
@@ -49,6 +55,7 @@ func MarshalEncryptionPrivateKeyPEM(key []byte) ([]byte, error) {
 	return pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der}), nil
 }
 
+// ParseEncryptionPrivateKeyPEM decodes an X25519 private key from PEM.
 func ParseEncryptionPrivateKeyPEM(raw []byte) ([]byte, error) {
 	block, _ := pem.Decode(raw)
 	if block == nil {
@@ -68,6 +75,7 @@ func ParseEncryptionPrivateKeyPEM(raw []byte) ([]byte, error) {
 	return append([]byte(nil), private.Bytes()...), nil
 }
 
+// MarshalEncryptionPublicKeyPEM encodes an X25519 public key as PKIX PEM.
 func MarshalEncryptionPublicKeyPEM(key []byte) ([]byte, error) {
 	if len(key) != 32 {
 		return nil, fmt.Errorf("invalid X25519 public key")
@@ -83,6 +91,7 @@ func MarshalEncryptionPublicKeyPEM(key []byte) ([]byte, error) {
 	return pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: der}), nil
 }
 
+// ParseEncryptionPublicKeyPEM decodes an X25519 public key from PEM.
 func ParseEncryptionPublicKeyPEM(raw []byte) ([]byte, error) {
 	block, _ := pem.Decode(raw)
 	if block == nil {
@@ -102,6 +111,7 @@ func ParseEncryptionPublicKeyPEM(raw []byte) ([]byte, error) {
 	return append([]byte(nil), public.Bytes()...), nil
 }
 
+// ParsePublicKeyPEM decodes an Ed25519 public key from PEM.
 func ParsePublicKeyPEM(raw []byte) (ed25519.PublicKey, error) {
 	block, _ := pem.Decode(raw)
 	if block == nil {
@@ -118,6 +128,7 @@ func ParsePublicKeyPEM(raw []byte) (ed25519.PublicKey, error) {
 	return public, nil
 }
 
+// DecodePublicKey decodes a base64url-encoded Ed25519 public key.
 func DecodePublicKey(value string) (ed25519.PublicKey, error) {
 	key, err := contractDecode(value)
 	if err != nil || len(key) != ed25519.PublicKeySize {
@@ -125,15 +136,18 @@ func DecodePublicKey(value string) (ed25519.PublicKey, error) {
 	}
 	return ed25519.PublicKey(key), nil
 }
+
+// DecodeEncryptionPublicKey decodes a base64url-encoded X25519 public key.
 func DecodeEncryptionPublicKey(value string) ([]byte, error) {
 	key, err := contractDecode(value)
 	if err != nil || len(key) != 32 {
-		return nil, ErrRecipientKeyRequired
+		return nil, contract.ErrRecipientKeyRequired
 	}
 	return key, nil
 }
 func contractDecode(value string) ([]byte, error) { return decodeBase64(value) }
 
+// LoadPublicKeySet loads one Ed25519 public key from PEM or a JSON key set.
 func LoadPublicKeySet(path, keyID string) (map[string][]byte, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {

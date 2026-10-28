@@ -1,23 +1,15 @@
 package runtime
 
-import (
-	"github.com/camelliavv/license-contract"
-	"time"
-)
+import "time"
 
-type LicensePayload = contract.LicensePayload
-type LicenseEnvelope = contract.LicenseEnvelope
-type SigningKeyCertificate = contract.SigningKeyCertificate
-type ActivationRequest = contract.ActivationRequest
-
+// ValidationPolicy contains the time and device checks applied to a license.
 type ValidationPolicy struct {
-	HardwareID      string
-	Now             time.Time
-	ClockSkew       time.Duration
-	RequireExpiry   bool
-	AllowedFeatures map[string]struct{}
+	HardwareID string
+	Now        time.Time
+	ClockSkew  time.Duration
 }
 
+// Entitlement is the application-facing view of a verified license.
 type Entitlement struct {
 	LicenseID  string            `json:"license_id"`
 	IssuedAt   time.Time         `json:"issued_at"`
@@ -28,21 +20,10 @@ type Entitlement struct {
 	ExpiresAt  time.Time         `json:"expires_at"`
 }
 
+// VerifierOptions configures a Verifier with trust keys, device identity, and decryption keys.
 type VerifierOptions struct {
 	RootPublicKeys       map[string][]byte
 	HardwareID           string
 	DecryptionPrivateKey []byte
-	DecryptionKeyID      string
 	ClockSkew            time.Duration
-	RequireExpiry        bool
-	AllowedFeatures      map[string]struct{}
 }
-
-const (
-	FormatVersionV1         = contract.FormatVersionV1
-	EnvelopeFormatVersionV1 = contract.EnvelopeFormatVersionV1
-	LicenseTokenPrefix      = contract.LicenseTokenPrefix
-	ActivationTokenPrefix   = contract.ActivationTokenPrefix
-	SignatureAlgorithm      = contract.SignatureAlgorithm
-	EncryptionAlgorithm     = contract.EncryptionAlgorithm
-)
