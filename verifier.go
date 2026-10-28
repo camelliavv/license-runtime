@@ -8,6 +8,7 @@ import (
 	"crypto/ed25519"
 	"crypto/hmac"
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -284,11 +285,26 @@ func deriveEnvelopeKey(shared []byte, signingKeyID, recipientKeyID string) []byt
 	extract := hmac.New(sha256.New, salt[:])
 	_, _ = extract.Write(shared)
 	prk := extract.Sum(nil)
-	info := []byte("license/envelope/hkdf-info/v1/" + signingKeyID + "/" + recipientKeyID)
+	info := envelopeKDFInfo(signingKeyID, recipientKeyID)
 	expand := hmac.New(sha256.New, prk)
 	_, _ = expand.Write(info)
 	_, _ = expand.Write([]byte{1})
 	return expand.Sum(nil)[:32]
+}
+
+func envelopeKDFInfo(signingKeyID, recipientKeyID string) []byte {
+	var info bytes.Buffer
+	writeKDFField(&info, "license/envelope/hkdf-info/v1")
+	writeKDFField(&info, signingKeyID)
+	writeKDFField(&info, recipientKeyID)
+	return info.Bytes()
+}
+
+func writeKDFField(out *bytes.Buffer, value string) {
+	var length [8]byte
+	binary.BigEndian.PutUint64(length[:], uint64(len(value)))
+	_, _ = out.Write(length[:])
+	_, _ = out.WriteString(value)
 }
 func newEnvelopeGCM(key []byte) (cipher.AEAD, error) {
 	block, err := aes.NewCipher(key)
