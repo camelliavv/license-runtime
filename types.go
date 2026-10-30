@@ -20,6 +20,12 @@ type Entitlement struct {
 	ExpiresAt  time.Time         `json:"expires_at"`
 }
 
+// Limit returns an immutable numeric entitlement by its contract key.
+func (e Entitlement) Limit(key string) (uint64, bool) {
+	value, ok := e.Limits[key]
+	return value, ok
+}
+
 // VerifierOptions configures a Verifier with trust keys, device identity, and decryption keys.
 type VerifierOptions struct {
 	RootPublicKeys       map[string][]byte

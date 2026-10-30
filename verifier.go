@@ -46,6 +46,12 @@ func (l License) Authorize(feature string) error {
 	return nil
 }
 
+// Limit returns an immutable numeric entitlement by its contract key.
+func (l License) Limit(key string) (uint64, bool) {
+	value, ok := l.payload.Limits[key]
+	return value, ok
+}
+
 // Verifier validates, decrypts, and applies the policy to license tokens.
 type Verifier struct {
 	rootPublicKeys      map[string][]byte
