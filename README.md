@@ -60,6 +60,11 @@ The convenience constructor reads the current hardware ID and derives the
 recipient key ID from the private key.
 
 ```go
+import (
+	"github.com/camelliavv/license-contract"
+	runtime "github.com/camelliavv/license-runtime"
+)
+
 func verifyLicense(tokenBytes []byte, privateKey []byte) error {
 	rootKeys, err := runtime.LoadPublicKeySet("/path/to/trusted-root-keys.json", "")
 	if err != nil {
@@ -79,13 +84,24 @@ func verifyLicense(tokenBytes []byte, privateKey []byte) error {
 	if err != nil {
 		return err
 	}
-	if err := license.Authorize("feature-id"); err != nil {
+	if err := license.Authorize(contract.FeatureSCT); err != nil {
 		return err
 	}
 	_ = license.Entitlement()
 	return nil
 }
 ```
+
+`HasFeature` and `Authorize` accept `contract.Feature`; `License.Limit` and
+`Entitlement.Limit` accept `contract.Limit`. Prefer the predefined constants,
+such as `contract.FeatureSCT` and `contract.LimitUserTotal`. `Limit` returns
+`(value, found)`, so a zero limit can be distinguished from an absent limit.
+
+When migrating string-based callers, use `[]contract.Feature` and
+`map[contract.Limit]uint64` for entitlement collections. Convert string variables
+explicitly with `contract.Feature(value)` or `contract.Limit(value)`; JSON values
+and keys remain strings. The former `LimitUsersTotal` constant is now
+`contract.LimitUserTotal`.
 
 Use `VerifyAt` when a caller must validate against a specific trusted time, such
 as in deterministic tests. `LoadFile` and `VerifyAtFile` provide the equivalent

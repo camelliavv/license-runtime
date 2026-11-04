@@ -1,6 +1,10 @@
 package runtime
 
-import "time"
+import (
+	"time"
+
+	"github.com/camelliavv/license-contract"
+)
 
 // ValidationPolicy contains the time and device checks applied to a license.
 type ValidationPolicy struct {
@@ -11,17 +15,17 @@ type ValidationPolicy struct {
 
 // Entitlement is the application-facing view of a verified license.
 type Entitlement struct {
-	LicenseID  string            `json:"license_id"`
-	IssuedAt   time.Time         `json:"issued_at"`
-	Product    string            `json:"product"`
-	HardwareID string            `json:"hardware_id,omitempty"`
-	Features   []string          `json:"features"`
-	Limits     map[string]uint64 `json:"limits,omitempty"`
-	ExpiresAt  time.Time         `json:"expires_at"`
+	LicenseID  string                    `json:"license_id"`
+	IssuedAt   time.Time                 `json:"issued_at"`
+	Product    string                    `json:"product"`
+	HardwareID string                    `json:"hardware_id,omitempty"`
+	Features   []contract.Feature        `json:"features"`
+	Limits     map[contract.Limit]uint64 `json:"limits,omitempty"`
+	ExpiresAt  time.Time                 `json:"expires_at"`
 }
 
 // Limit returns an immutable numeric entitlement by its contract key.
-func (e Entitlement) Limit(key string) (uint64, bool) {
+func (e Entitlement) Limit(key contract.Limit) (uint64, bool) {
 	value, ok := e.Limits[key]
 	return value, ok
 }

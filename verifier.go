@@ -36,10 +36,10 @@ func (l License) Raw() []byte { return append([]byte(nil), l.raw...) }
 func (l License) Entitlement() Entitlement { return ToEntitlement(l.payload) }
 
 // HasFeature reports whether the verified license contains feature.
-func (l License) HasFeature(feature string) bool { return HasFeature(l.payload, feature) }
+func (l License) HasFeature(feature contract.Feature) bool { return HasFeature(l.payload, feature) }
 
 // Authorize reports an error when feature is not present in the verified license.
-func (l License) Authorize(feature string) error {
+func (l License) Authorize(feature contract.Feature) error {
 	if feature != "" && !l.HasFeature(feature) {
 		return fmt.Errorf("%w: %s", ErrFeatureNotLicensed, feature)
 	}
@@ -47,7 +47,7 @@ func (l License) Authorize(feature string) error {
 }
 
 // Limit returns an immutable numeric entitlement by its contract key.
-func (l License) Limit(key string) (uint64, bool) {
+func (l License) Limit(key contract.Limit) (uint64, bool) {
 	value, ok := l.payload.Limits[key]
 	return value, ok
 }
@@ -346,7 +346,7 @@ func validatePayload(payload contract.LicensePayload, policy ValidationPolicy) e
 }
 
 // HasFeature reports whether a payload contains feature.
-func HasFeature(payload contract.LicensePayload, feature string) bool {
+func HasFeature(payload contract.LicensePayload, feature contract.Feature) bool {
 	for _, value := range payload.Features {
 		if value == feature {
 			return true
@@ -357,8 +357,8 @@ func HasFeature(payload contract.LicensePayload, feature string) bool {
 
 // ToEntitlement converts a wire-level payload to an application-facing entitlement.
 func ToEntitlement(payload contract.LicensePayload) Entitlement {
-	features := append([]string(nil), payload.Features...)
-	limits := make(map[string]uint64, len(payload.Limits))
+	features := append([]contract.Feature(nil), payload.Features...)
+	limits := make(map[contract.Limit]uint64, len(payload.Limits))
 	for key, value := range payload.Limits {
 		limits[key] = value
 	}
@@ -366,9 +366,9 @@ func ToEntitlement(payload contract.LicensePayload) Entitlement {
 }
 func clonePayload(input contract.LicensePayload) contract.LicensePayload {
 	output := input
-	output.Features = append([]string(nil), input.Features...)
+	output.Features = append([]contract.Feature(nil), input.Features...)
 	if input.Limits != nil {
-		output.Limits = make(map[string]uint64, len(input.Limits))
+		output.Limits = make(map[contract.Limit]uint64, len(input.Limits))
 		for key, value := range input.Limits {
 			output.Limits[key] = value
 		}
