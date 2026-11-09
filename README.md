@@ -56,11 +56,15 @@ func main() {
 ```
 
 For verification, load root public keys from a trusted application configuration.
-The convenience constructor reads the current hardware ID and derives the
-recipient key ID from the private key.
+`NewVerifierOptions` reads the current hardware ID. The recommended clock skew
+(third argument) is `2*time.Minute`. This tolerance applies to both clock rollback
+detection and the license payload's validity window. Pass `0` for zero tolerance.
+`NewVerifier` derives the recipient key ID from the private key.
 
 ```go
 import (
+	"time"
+
 	"github.com/camelliavv/license-contract"
 	runtime "github.com/camelliavv/license-runtime"
 )
@@ -71,7 +75,7 @@ func verifyLicense(tokenBytes []byte, privateKey []byte) error {
 		return err
 	}
 
-	options, err := runtime.NewVerifierOptions(rootKeys, privateKey)
+	options, err := runtime.NewVerifierOptions(rootKeys, privateKey, 2*time.Minute)
 	if err != nil {
 		return err
 	}
@@ -103,9 +107,16 @@ explicitly with `contract.Feature(value)` or `contract.Limit(value)`; JSON value
 and keys remain strings. The former `LimitUsersTotal` constant is now
 `contract.LimitUserTotal`.
 
-Use `VerifyAt` when a caller must validate against a specific trusted time, such
-as in deterministic tests. `LoadFile` and `VerifyAtFile` provide the equivalent
-operations for a license file.
+`Verify` and `LoadFile` share a clock across all verifiers in the process.
+If the system clock falls behind the time expected from monotonic elapsed time
+by more than `ClockSkew` (zero by default), verification returns
+`ErrClockRollback`. Smaller corrections never move verification time backwards.
+The check runs on each verification; it does not recheck a cached `License`.
+The baseline is kept in memory and resets when the process restarts.
+
+Use `VerifyAt` or `VerifyAtFile` only with a trusted time, such as in deterministic
+tests. An explicit nonzero time bypasses the rollback check and does not change
+its baseline. A zero time uses the guarded current time.
 
 For tests, construct `VerifierOptions` directly so the hardware ID and key
 material are explicit:

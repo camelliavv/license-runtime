@@ -62,7 +62,8 @@ type Verifier struct {
 }
 
 // NewVerifierOptions creates verifier options using the current host hardware ID.
-func NewVerifierOptions(rootPublicKeys map[string][]byte, decryptionPrivateKey []byte) (VerifierOptions, error) {
+// The recommended clockSkew is 2*time.Minute. Pass zero for strict time checks.
+func NewVerifierOptions(rootPublicKeys map[string][]byte, decryptionPrivateKey []byte, clockSkew time.Duration) (VerifierOptions, error) {
 	hardwareID, err := CurrentHardwareID()
 	if err != nil {
 		return VerifierOptions{}, err
@@ -71,6 +72,7 @@ func NewVerifierOptions(rootPublicKeys map[string][]byte, decryptionPrivateKey [
 		RootPublicKeys:       rootPublicKeys,
 		HardwareID:           hardwareID,
 		DecryptionPrivateKey: decryptionPrivateKey,
+		ClockSkew:            clockSkew,
 	}, nil
 }
 
@@ -101,16 +103,13 @@ func NewVerifier(options VerifierOptions) (*Verifier, error) {
 		return nil, contract.ErrRecipientKeyRequired
 	}
 	policy := ValidationPolicy{HardwareID: options.HardwareID, ClockSkew: options.ClockSkew}
-	if policy.ClockSkew == 0 {
-		policy.ClockSkew = 2 * time.Minute
-	}
 	return &Verifier{rootPublicKeys: rootKeys, recipientPrivateKey: append([]byte(nil), options.DecryptionPrivateKey...), recipientKeyID: recipientKeyID, policy: policy}, nil
 }
 
-// Verify validates a license using the current UTC time.
+// Verify validates a license using the process's rollback-checked current time.
 func (v *Verifier) Verify(raw []byte) (License, error) { return v.verifyWithTime(raw, time.Time{}) }
 
-// VerifyAt validates a license as of the supplied time.
+// VerifyAt validates a license as of the supplied trusted time. A zero time uses Verify's clock.
 func (v *Verifier) VerifyAt(raw []byte, now time.Time) (License, error) {
 	return v.verifyWithTime(raw, now)
 }
@@ -128,9 +127,14 @@ func (v *Verifier) verifyWithTime(raw []byte, now time.Time) (License, error) {
 	recipientKeyID := v.recipientKeyID
 	policy := v.policy
 	v.mu.RUnlock()
-	if !now.IsZero() {
-		policy.Now = now.UTC()
+	if now.IsZero() {
+		var err error
+		now, err = processClock.now(policy.ClockSkew)
+		if err != nil {
+			return License{}, err
+		}
 	}
+	policy.Now = now.UTC()
 	payload, err := parseAndVerify(raw, rootPublicKeys, recipientPrivateKey, recipientKeyID, policy)
 	if err != nil {
 		return License{}, err
@@ -138,10 +142,10 @@ func (v *Verifier) verifyWithTime(raw []byte, now time.Time) (License, error) {
 	return License{payload: payload, raw: append([]byte(nil), raw...)}, nil
 }
 
-// LoadFile reads and validates a license file using the current UTC time.
+// LoadFile reads a license file and validates it using the same clock as Verify.
 func (v *Verifier) LoadFile(path string) (License, error) { return v.loadFileAt(path, time.Time{}) }
 
-// VerifyAtFile reads and validates a license file as of the supplied time.
+// VerifyAtFile reads a license file and applies the same time rules as VerifyAt.
 func (v *Verifier) VerifyAtFile(path string, now time.Time) (License, error) {
 	return v.loadFileAt(path, now)
 }
@@ -324,11 +328,6 @@ func validatePayload(payload contract.LicensePayload, policy ValidationPolicy) e
 		return fmt.Errorf("%w: got %q", ErrWrongHardware, payload.HardwareID)
 	}
 	now := policy.Now
-	if now.IsZero() {
-		now = time.Now().UTC()
-	} else {
-		now = now.UTC()
-	}
 	skew := policy.ClockSkew
 	if skew < 0 {
 		skew = 0

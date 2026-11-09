@@ -4,8 +4,9 @@ import (
 	"crypto/ed25519"
 	"encoding/json"
 	"fmt"
-	"github.com/camelliavv/license-contract"
 	"time"
+
+	"github.com/camelliavv/license-contract"
 )
 
 func verifySigningKeyCertificate(raw []byte, rootPublicKeys map[string][]byte, now time.Time) (ed25519.PublicKey, error) {
@@ -29,9 +30,6 @@ func verifySigningKeyCertificate(raw []byte, rootPublicKeys map[string][]byte, n
 	child, err := contract.DecodeBase64URL(cert.PublicKey)
 	if err != nil || len(child) != ed25519.PublicKeySize {
 		return nil, contract.ErrInvalidSignature
-	}
-	if now.IsZero() {
-		now = time.Now().UTC()
 	}
 	if !cert.NotBefore.IsZero() && now.Before(cert.NotBefore) {
 		return nil, fmt.Errorf("%w: signing certificate is not yet valid", contract.ErrNotYetValid)

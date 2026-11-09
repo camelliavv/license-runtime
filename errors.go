@@ -3,6 +3,8 @@ package runtime
 import "errors"
 
 var (
+	// ErrClockRollback indicates the system clock fell behind the process clock beyond the allowed skew.
+	ErrClockRollback = errors.New("system clock moved backwards")
 	// ErrWrongHardware indicates that a license targets a different device.
 	ErrWrongHardware = errors.New("license hardware mismatch")
 	// ErrFeatureNotLicensed indicates that a requested feature is absent.

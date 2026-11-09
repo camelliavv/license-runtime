@@ -35,5 +35,8 @@ type VerifierOptions struct {
 	RootPublicKeys       map[string][]byte
 	HardwareID           string
 	DecryptionPrivateKey []byte
-	ClockSkew            time.Duration
+	// ClockSkew is the tolerance for payload validity and system clock rollback.
+	// The recommended value is 2*time.Minute.
+	// Zero (the default) and negative values allow no tolerance.
+	ClockSkew time.Duration
 }
