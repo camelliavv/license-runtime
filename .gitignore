@@ -21,6 +21,9 @@ output/
 go.work
 go.work.sum
 
+# Local agent instructions
+AGENTS.md
+
 # Local configuration and secrets
 .env
 .env.*

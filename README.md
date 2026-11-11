@@ -3,9 +3,7 @@
 `license-runtime` is a Go SDK for applications that need to create activation
 requests and verify licenses. It binds a verified license to the current device,
 decrypts the license payload, and exposes the resulting entitlement to the
-application.
-
-The SDK does not issue licenses or contain signing secrets.
+application. It can also sign JWT inputs using a verified license's Ed25519 key.
 
 ## Requirements
 
@@ -128,6 +126,34 @@ options := runtime.VerifierOptions{
 	DecryptionPrivateKey: privateKey,
 }
 ```
+
+## Signing a JWT
+
+Build the protected header and claims in trusted application code. Pass the
+two unpadded Base64URL segments, joined by a period, to `SignJWTInput`.
+For example, given the application's serialized `claimsJSON` and a header
+selecting Ed25519, assemble the compact token as follows.
+
+```go
+encoding := base64.RawURLEncoding // from encoding/base64
+header := encoding.EncodeToString([]byte(`{"alg":"EdDSA","typ":"JWT"}`))
+signingInput := header + "." + encoding.EncodeToString(claimsJSON)
+signature, err := verifier.SignJWTInput(rawLicense, []byte(signingInput))
+if err != nil {
+	return "", err
+}
+return signingInput + "." + encoding.EncodeToString(signature), nil
+```
+
+Each call verifies the encrypted license, device binding and current time.
+Signing stops at `ExpiresAt`, including when `ClockSkew` would still allow
+ordinary verification. The application sets and enforces the token's own
+expiry. To have tokens expire with the license, cap their `exp` at `ExpiresAt`.
+
+`runtime.DecodePublicKey(license.Payload().JWT.PublicKey)` returns the Ed25519
+public key from a verified license. The SDK omits the signing seed from the
+returned payload. Licenses issued with the older payload format that omitted
+the `jwt` field need to be reissued for this SDK version.
 
 ## Security guidance
 

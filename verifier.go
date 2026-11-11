@@ -8,6 +8,7 @@ import (
 	"crypto/ed25519"
 	"crypto/hmac"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
@@ -26,7 +27,7 @@ type License struct {
 	raw     []byte
 }
 
-// Payload returns a copy of the verified wire-level payload.
+// Payload returns a copy of the verified payload with the JWT signing seed omitted.
 func (l License) Payload() contract.LicensePayload { return clonePayload(l.payload) }
 
 // Raw returns a copy of the original license token bytes.
@@ -107,16 +108,61 @@ func NewVerifier(options VerifierOptions) (*Verifier, error) {
 }
 
 // Verify validates a license using the process's rollback-checked current time.
-func (v *Verifier) Verify(raw []byte) (License, error) { return v.verifyWithTime(raw, time.Time{}) }
+func (v *Verifier) Verify(raw []byte) (License, error) { return v.VerifyAt(raw, time.Time{}) }
 
 // VerifyAt validates a license as of the supplied trusted time. A zero time uses Verify's clock.
 func (v *Verifier) VerifyAt(raw []byte, now time.Time) (License, error) {
-	return v.verifyWithTime(raw, now)
+	payload, _, err := v.verifyPayload(raw, now)
+	if err != nil {
+		return License{}, err
+	}
+	payload.JWT.Seed = ""
+	return License{payload: payload, raw: append([]byte(nil), raw...)}, nil
 }
 
-func (v *Verifier) verifyWithTime(raw []byte, now time.Time) (License, error) {
+// SignJWTInput verifies rawLicense using the rollback-checked current time and
+// returns the raw Ed25519 signature over signingInput. The caller constructs
+// the JWS signing input and encodes the signature to assemble the token.
+// Signing stops at the license expiry even when ClockSkew allows verification.
+func (v *Verifier) SignJWTInput(rawLicense, signingInput []byte) ([]byte, error) {
+	if len(signingInput) == 0 {
+		return nil, fmt.Errorf("JWT signing input is empty")
+	}
+	payload, now, err := v.verifyPayload(rawLicense, time.Time{})
+	if err != nil {
+		return nil, err
+	}
+	if !now.Before(payload.ExpiresAt) {
+		return nil, contract.ErrExpired
+	}
+	if len(payload.JWT.Seed) != base64.RawURLEncoding.EncodedLen(ed25519.SeedSize) {
+		return nil, fmt.Errorf("%w: invalid JWT signing seed", contract.ErrMalformedLicense)
+	}
+	seed, err := contract.DecodeBase64URL(payload.JWT.Seed)
+	defer wipeBytes(seed)
+	if err != nil || len(seed) != ed25519.SeedSize {
+		return nil, fmt.Errorf("%w: invalid JWT signing seed", contract.ErrMalformedLicense)
+	}
+	private := ed25519.NewKeyFromSeed(seed)
+	defer wipeBytes(private)
+	public := private.Public().(ed25519.PublicKey)
+	if contract.EncodeBase64URL(public) != payload.JWT.PublicKey {
+		return nil, fmt.Errorf("%w: invalid JWT public key", contract.ErrMalformedLicense)
+	}
+	return ed25519.Sign(private, signingInput), nil
+}
+
+// wipeBytes clears temporary buffers that held plaintext or key material.
+func wipeBytes(buf []byte) {
+	for i := range buf {
+		buf[i] = 0
+	}
+}
+
+// verifyPayload returns the authenticated payload and the UTC time used to validate it.
+func (v *Verifier) verifyPayload(raw []byte, now time.Time) (contract.LicensePayload, time.Time, error) {
 	if len(raw) == 0 || len(raw) > 1<<20 {
-		return License{}, fmt.Errorf("license bytes are empty or too large")
+		return contract.LicensePayload{}, time.Time{}, fmt.Errorf("license bytes are empty or too large")
 	}
 	v.mu.RLock()
 	rootPublicKeys := make(map[string][]byte, len(v.rootPublicKeys))
@@ -131,15 +177,12 @@ func (v *Verifier) verifyWithTime(raw []byte, now time.Time) (License, error) {
 		var err error
 		now, err = processClock.now(policy.ClockSkew)
 		if err != nil {
-			return License{}, err
+			return contract.LicensePayload{}, time.Time{}, err
 		}
 	}
 	policy.Now = now.UTC()
 	payload, err := parseAndVerify(raw, rootPublicKeys, recipientPrivateKey, recipientKeyID, policy)
-	if err != nil {
-		return License{}, err
-	}
-	return License{payload: payload, raw: append([]byte(nil), raw...)}, nil
+	return payload, policy.Now, err
 }
 
 // LoadFile reads a license file and validates it using the same clock as Verify.
@@ -162,7 +205,7 @@ func (v *Verifier) loadFileAt(path string, now time.Time) (License, error) {
 	if err != nil {
 		return License{}, err
 	}
-	return v.verifyWithTime(raw, now)
+	return v.VerifyAt(raw, now)
 }
 
 // Policy returns the verifier's validation policy.
@@ -277,11 +320,13 @@ func parseAndVerify(raw []byte, rootPublicKeys map[string][]byte, recipientPriva
 	if err != nil {
 		return contract.LicensePayload{}, contract.ErrInvalidEncryption
 	}
+	defer wipeBytes(canonical)
 	var payload contract.LicensePayload
 	if err := json.Unmarshal(canonical, &payload); err != nil {
 		return contract.LicensePayload{}, fmt.Errorf("%w: payload JSON: %v", contract.ErrMalformedLicense, err)
 	}
 	recanonical, err := contract.CanonicalPayload(payload)
+	defer wipeBytes(recanonical)
 	if err != nil || !bytes.Equal(canonical, recanonical) || payload.KeyID != envelope.KeyID {
 		return contract.LicensePayload{}, fmt.Errorf("%w: payload is not canonical", contract.ErrMalformedLicense)
 	}
